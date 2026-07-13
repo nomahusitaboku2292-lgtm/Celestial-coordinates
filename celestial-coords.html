@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天球座標変換器 — Celestial Coordinate Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0f1c;
+    --bg-2: #0d1424;
+    --panel: #121b30;
+    --panel-2: #0e1526;
+    --border: #253048;
+    --border-soft: #1a2338;
+    --brass: #c9a66b;
+    --brass-bright: #e6c98d;
+    --starlight: #7dd3e8;
+    --text: #e9e6dc;
+    --text-muted: #8891a5;
+    --warn: #e8927c;
+    --planet-tag: #8fd694;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, #16213d 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 110%, #131c33 0%, transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px 80px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  .wrap{ max-width: 1120px; margin: 0 auto; }
+
+  header{ margin-bottom: 36px; }
+  .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    color: var(--brass);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h1{
+    font-family: 'Spectral', serif;
+    font-weight: 300;
+    font-size: clamp(28px, 4vw, 42px);
+    margin: 0 0 8px;
+    letter-spacing: 0.01em;
+  }
+  h1 em{ font-style: italic; color: var(--starlight); font-weight: 300; }
+  .sub{
+    color: var(--text-muted);
+    font-size: 14.5px;
+    max-width: 680px;
+    line-height: 1.7;
+  }
+
+  .grid{
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 26px;
+    position: relative;
+  }
+  .panel::before{
+    content: '';
+    position: absolute; top:0; left:0; right:0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--brass), transparent);
+    opacity: 0.5;
+  }
+
+  .panel-title{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title .dot{ width:5px; height:5px; background: var(--brass); border-radius: 50%; }
+
+  .field-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .field{ display: flex; flex-direction: column; gap: 6px; }
+  .field label{ font-size: 12px; color: var(--text-muted); }
+  .field input, .field select{
+    background: var(--bg-2);
+    border: 1px solid var(--border-soft);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    padding: 9px 10px;
+    border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+    width: 100%;
+  }
+  .field input:focus, select:focus{
+    outline: 2px solid var(--starlight);
+    outline-offset: 1px;
+    border-color: var(--starlight);
+  }
+  .field .unit{ font-size: 11px; color: var(--text-muted); }
+
+  .btn{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    background: transparent;
+    border: 1px solid var(--brass);
+    color: var(--brass-bright);
+    padding: 10px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .btn:hover{ background: rgba(201,166,107,0.12); }
+  .btn:focus-visible{ outline: 2px solid var(--starlight); outline-offset: 2px; }
+  .btn-row{ display: flex; gap: 8px; }
+  .btn.planet-btn{ border-color: var(--planet-tag); color: var(--planet-tag); }
+  .btn.planet-btn:hover{ background: rgba(143,214,148,0.12); }
+  .btn.compass-btn{ border-color: var(--starlight); color: var(--starlight); width: auto; margin-top: 0; padding: 8px 14px; font-size: 12.5px; }
+  .btn.compass-btn.active{ background: rgba(125,211,232,0.16); }
+
+  .geo-status{ font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 16px; }
+  .geo-status.err{ color: var(--warn); }
+  .geo-status.ok{ color: var(--starlight); }
+
+  .toggle{
+    display: flex; background: var(--bg-2); border: 1px solid var(--border-soft);
+    border-radius: 3px; overflow: hidden; margin-bottom: 10px;
+  }
+  .toggle button{
+    flex: 1; background: transparent; border: none; color: var(--text-muted);
+    font-family: 'Inter', sans-serif; font-size: 12.5px; padding: 10px 8px; cursor: pointer;
+  }
+  .toggle button.active{ background: rgba(125,211,232,0.12); color: var(--starlight); }
+  .toggle button:focus-visible{ outline: 2px solid var(--starlight); outline-offset: -2px; }
+  .toggle-note{ font-size: 11.5px; color: var(--text-muted); line-height: 1.6; margin-bottom: 18px; }
+
+  .divider{ height:1px; background: var(--border-soft); margin: 20px 0; }
+
+  /* object list */
+  .obj-list{ display: flex; flex-direction: column; gap: 10px; }
+  .obj-row{
+    background: var(--bg-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+    padding: 10px;
+  }
+  .obj-row-top{
+    display: grid;
+    grid-template-columns: 10px 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .obj-row-top .swatch{ width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .obj-row-top input, .obj-row-top select{
+    background: var(--panel-2);
+    border: 1px solid var(--border-soft);
+    color: var(--text);
+    font-size: 13px;
+    padding: 7px 8px;
+    border-radius: 3px;
+    font-family: 'Inter', sans-serif;
+  }
+  .obj-row-bottom{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .obj-row-bottom.single{ grid-template-columns: 1fr; }
+  .obj-row-bottom .field{ gap: 4px; }
+  .obj-row-bottom .field label{ font-size: 10.5px; }
+  .obj-row-bottom .field input, .obj-row-bottom .field select{ padding: 7px 8px; font-size: 13px; }
+  .planet-note{
+    font-size: 11px; color: var(--planet-tag); grid-column: 1 / -1;
+  }
+
+  .remove-btn{
+    background: transparent; border: 1px solid var(--border-soft); color: var(--text-muted);
+    width: 28px; height: 28px; border-radius: 3px; cursor: pointer; font-size: 15px;
+    line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .remove-btn:hover{ border-color: var(--warn); color: var(--warn); }
+  .remove-btn:disabled{ opacity: 0.3; cursor: not-allowed; }
+  .remove-btn:focus-visible{ outline: 2px solid var(--starlight); }
+
+  .add-btn{ margin-top: 2px; border-style: dashed; }
+
+  .dome-wrap{ display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .compass-row{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .compass-status{ font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  svg.dome{ width: 100%; max-width: 340px; height: auto; display: block; background: var(--bg-2); border-radius: 50%; }
+  .dome-label{ font-family: 'JetBrains Mono', monospace; font-size: 10.5px; fill: var(--text-muted); }
+  .dome-cardinal{ font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; fill: var(--brass-bright); }
+  .dome-obj-label{ font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 500; }
+
+  .result-table{ margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .result-card{ border: 1px solid var(--border-soft); border-radius: 3px; padding: 12px 14px; background: var(--bg-2); }
+  .result-card .rname{
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 13.5px;
+    margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .result-card .rname .swatch{ width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .result-card .rname .below{ font-size: 11px; color: var(--warn); font-weight: 400; }
+  .result-card .rname .tag{
+    font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 8px;
+    border: 1px solid var(--border-soft); color: var(--text-muted);
+  }
+  .result-card .rname .tag.planet{ color: var(--planet-tag); border-color: var(--planet-tag); }
+  .output-row{
+    display: grid; grid-template-columns: auto 1fr; gap: 5px 12px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  }
+  .output-row .k{ color: var(--text-muted); }
+  .output-row .v{ color: var(--text); font-variant-numeric: tabular-nums; }
+  .output-row .v.hi{ color: var(--starlight); }
+  .card-footnote{ font-size: 10.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+
+  footer{
+    text-align: center; color: var(--text-muted); font-size: 11px;
+    margin-top: 40px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Equatorial ⇄ Horizontal · Fixed Stars + Planets</div>
+    <h1>天球座標<em>変換器</em></h1>
+    <p class="sub">赤道座標(赤経・赤緯)と地平座標(高度・方位角)を、観測地点と日時から相互に変換します。恒星は固定座標、惑星は日時に応じて自動計算される座標に対応。複数の天体を名前付きで登録して同時に比較できます。</p>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: inputs -->
+    <div class="panel">
+      <div class="panel-title"><span class="dot"></span>観測条件</div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="lat">緯度 (Latitude)</label>
+          <input type="number" id="lat" step="0.0001" value="34.6937">
+          <span class="unit">度 / 北緯+ 南緯−</span>
+        </div>
+        <div class="field">
+          <label for="lon">経度 (Longitude)</label>
+          <input type="number" id="lon" step="0.0001" value="135.5023">
+          <span class="unit">度 / 東経+ 西経−</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="dt">観測日時(現地時刻)</label>
+        <input type="datetime-local" id="dt" step="1">
+      </div>
+
+      <button class="btn" id="geoBtn" type="button">📍 現在地+現在時刻を取得</button>
+      <div class="geo-status" id="geoStatus"></div>
+
+      <div class="divider"></div>
+
+      <div class="panel-title"><span class="dot"></span>変換方向(恒星のみに適用)</div>
+      <div class="toggle" role="group" aria-label="変換方向">
+        <button id="modeEq" class="active" type="button">赤道 → 地平</button>
+        <button id="modeHz" type="button">地平 → 赤道</button>
+      </div>
+      <div class="toggle-note">※ 惑星は常に軌道要素から赤経・赤緯を自動計算し、そこから高度・方位を求めます(この切替の対象外)。</div>
+
+      <div class="panel-title"><span class="dot"></span>天体リスト</div>
+      <div class="obj-list" id="objList"></div>
+      <div class="btn-row">
+        <button class="btn add-btn" id="addStarBtn" type="button">＋ 恒星を追加</button>
+        <button class="btn add-btn planet-btn" id="addPlanetBtn" type="button">＋ 惑星を追加</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: dome + outputs -->
+    <div class="panel">
+      <div class="panel-title"><span class="dot"></span>スカイドーム(コンパス視点)</div>
+      <div class="dome-wrap">
+        <svg class="dome" viewBox="0 0 300 300" width="300" height="300" preserveAspectRatio="xMidYMid meet" id="domeSvg" role="img" aria-label="登録した天体の高度・方位を示すドーム図">
+          <circle cx="150" cy="150" r="120" fill="#0d1424" stroke="#253048" stroke-width="1.5"/>
+          <circle cx="150" cy="150" r="80" fill="none" stroke="#1a2338" stroke-width="1"/>
+          <circle cx="150" cy="150" r="40" fill="none" stroke="#1a2338" stroke-width="1"/>
+          <circle cx="150" cy="150" r="120" fill="none" stroke="#c9a66b" stroke-width="1.5" opacity="0.6"/>
+          <text x="150" y="114" text-anchor="middle" class="dome-label">60°</text>
+          <text x="150" y="74" text-anchor="middle" class="dome-label">30°</text>
+          <g id="rotatingLayer">
+            <text id="cardN" x="150" y="26" text-anchor="middle" class="dome-cardinal">N</text>
+            <text id="cardE" x="274" y="155" text-anchor="middle" class="dome-cardinal">E</text>
+            <text id="cardS" x="150" y="282" text-anchor="middle" class="dome-cardinal">S</text>
+            <text id="cardW" x="26" y="155" text-anchor="middle" class="dome-cardinal">W</text>
+            <g id="objLayer"></g>
+          </g>
+        </svg>
+        <div class="compass-row">
+          <button class="btn compass-btn" id="compassBtn" type="button">🧭 コンパス連動: OFF</button>
+          <span class="compass-status" id="compassStatus"></span>
+        </div>
+        <div class="toggle-note">ONにすると端末の方位センサーを使い、実際に向いている方向が画面の上に来るようドームを回転します(iOSは初回タップ時に許可を求められます。要HTTPS)。</div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="panel-title"><span class="dot"></span>変換結果</div>
+      <div class="result-table" id="resultTable"></div>
+    </div>
+  </div>
+
+  <footer>RA/DEC ⇄ ALT/AZ · LST FROM UTC · PLANET POSITIONS FROM KEPLERIAN ELEMENTS (VALID ~1800–2050)</footer>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+
+  const latEl = $('lat'), lonEl = $('lon'), dtEl = $('dt');
+  const modeEqBtn = $('modeEq'), modeHzBtn = $('modeHz');
+  const objListEl = $('objList'), addStarBtn = $('addStarBtn'), addPlanetBtn = $('addPlanetBtn');
+  const resultTable = $('resultTable');
+  const objLayer = $('objLayer');
+  const rotatingLayer = $('rotatingLayer');
+  const cardN = $('cardN'), cardE = $('cardE'), cardS = $('cardS'), cardW = $('cardW');
+  const compassBtn = $('compassBtn'), compassStatus = $('compassStatus');
+  const geoBtn = $('geoBtn'), geoStatus = $('geoStatus');
+
+  let heading = null; // current compass heading in degrees, or null if inactive
+  let compassActive = false;
+
+  let mode = 'eq2hz';
+  const COLORS = ['#7dd3e8', '#c9a66b', '#e8927c', '#a78bfa', '#8fd694', '#f2d675', '#f4a6c1', '#9fd8ff'];
+  let idCounter = 0;
+  function colorFor(idx){ return COLORS[idx % COLORS.length]; }
+
+  // ---- planet orbital elements (J2000 + rate per Julian century) ----
+  // Source: standard low-precision Keplerian elements for the major planets,
+  // valid roughly 1800-2050. a: AU, e: unitless, I/L/peri/node: degrees.
+  const PLANETS = {
+    mercury: { nameJa: '水星', a0:0.38709927, ad:0.00000037, e0:0.20563593, ed:0.00001906, I0:7.00497902, Id:-0.00594749, L0:252.25032350, Ld:149472.67411175, peri0:77.45779628, perid:0.16047689, node0:48.33076593, nodid:-0.12534081 },
+    venus:   { nameJa: '金星', a0:0.72333566, ad:0.00000390, e0:0.00677672, ed:-0.00004107, I0:3.39467605, Id:-0.00078890, L0:181.97909950, Ld:58517.81538729, peri0:131.60246718, perid:0.00268329, node0:76.67984255, nodid:-0.27769418 },
+    earth:   { nameJa: '地球', a0:1.00000261, ad:0.00000562, e0:0.01671123, ed:-0.00004392, I0:-0.00001531, Id:-0.01294668, L0:100.46457166, Ld:35999.37244981, peri0:102.93768193, perid:0.32327364, node0:0.0, nodid:0.0 },
+    mars:    { nameJa: '火星', a0:1.52371034, ad:0.00001847, e0:0.09339410, ed:0.00007882, I0:1.84969142, Id:-0.00813131, L0:-4.55343205, Ld:19140.30268499, peri0:-23.94362959, perid:0.44441088, node0:49.55953891, nodid:-0.29257343 },
+    jupiter: { nameJa: '木星', a0:5.20288700, ad:-0.00011607, e0:0.04838624, ed:-0.00013253, I0:1.30439695, Id:-0.00183714, L0:34.39644051, Ld:3034.74612775, peri0:14.72847983, perid:0.21252668, node0:100.47390909, nodid:0.20469106 },
+    saturn:  { nameJa: '土星', a0:9.53667594, ad:-0.00125060, e0:0.05386179, ed:-0.00050991, I0:2.48599187, Id:0.00193609, L0:49.95424423, Ld:1222.49362201, peri0:92.59887831, perid:-0.41897216, node0:113.66242448, nodid:-0.28867794 },
+    uranus:  { nameJa: '天王星', a0:19.18916464, ad:-0.00196176, e0:0.04725744, ed:-0.00004397, I0:0.77263783, Id:-0.00242939, L0:313.23810451, Ld:428.48202785, peri0:170.95427630, perid:0.40805281, node0:74.01692503, nodid:0.04240589 },
+    neptune: { nameJa: '海王星', a0:30.06992276, ad:0.00026291, e0:0.00859048, ed:0.00005105, I0:1.77004347, Id:0.00035372, L0:-55.12002969, Ld:218.45945325, peri0:44.96476227, perid:-0.32241464, node0:131.78422574, nodid:-0.00508664 }
+  };
+  const PLANET_ORDER = ['mercury','venus','mars','jupiter','saturn','uranus','neptune'];
+
+  // seed with two fixed stars + one planet demo
+  let objects = [
+    { id: idCounter++, name: 'リゲル', type: 'star', v1: 5.2423, v2: -8.2016 },
+    { id: idCounter++, name: 'ベガ',   type: 'star', v1: 18.6156, v2: 38.7837 },
+    { id: idCounter++, name: PLANETS.mars.nameJa, type: 'planet', planet: 'mars' }
+  ];
+
+  function setLocalDatetimeNow(){
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const val = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    dtEl.value = val;
+  }
+  setLocalDatetimeNow();
+
+  // ---- math helpers ----
+  const deg2rad = d => d * Math.PI / 180;
+  const rad2deg = r => r * 180 / Math.PI;
+  const norm360 = d => ((d % 360) + 360) % 360;
+  const norm24 = h => ((h % 24) + 24) % 24;
+  const normSigned180 = d => { let x = ((d + 180) % 360 + 360) % 360 - 180; return x; };
+
+  function julianDate(date){
+    return date.getTime() / 86400000 + 2440587.5;
+  }
+
+  function localSiderealTimeDeg(date, lonDeg){
+    const JD = julianDate(date);
+    const D = JD - 2451545.0;
+    const GMST = norm360(280.46061837 + 360.98564736629 * D);
+    return norm360(GMST + lonDeg);
+  }
+
+  function eqToHz(raH, decDeg, latDeg, lonDeg, date){
+    const LSTdeg = localSiderealTimeDeg(date, lonDeg);
+    const Hdeg = norm360(LSTdeg - raH * 15);
+    const H = deg2rad(Hdeg), dec = deg2rad(decDeg), lat = deg2rad(latDeg);
+    const sinAlt = Math.sin(dec)*Math.sin(lat) + Math.cos(dec)*Math.cos(lat)*Math.cos(H);
+    const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+    const cosAlt = Math.cos(alt);
+    let az;
+    if (Math.abs(cosAlt) < 1e-9) {
+      az = 0;
+    } else {
+      const sinAz = -Math.sin(H) * Math.cos(dec) / cosAlt;
+      const cosAz = (Math.sin(dec) - Math.sin(alt)*Math.sin(lat)) / (cosAlt * Math.cos(lat));
+      az = norm360(rad2deg(Math.atan2(sinAz, cosAz)));
+    }
+    return { alt: rad2deg(alt), az, LSTdeg, Hdeg };
+  }
+
+  function hzToEq(altDeg, azDeg, latDeg, lonDeg, date){
+    const alt = deg2rad(altDeg), az = deg2rad(azDeg), lat = deg2rad(latDeg);
+    const sinDec = Math.sin(alt)*Math.sin(lat) + Math.cos(alt)*Math.cos(lat)*Math.cos(az);
+    const dec = Math.asin(Math.max(-1, Math.min(1, sinDec)));
+    const cosDec = Math.cos(dec);
+    let Hdeg;
+    if (Math.abs(cosDec) < 1e-9) {
+      Hdeg = 0;
+    } else {
+      const sinH = -Math.sin(az) * Math.cos(alt) / cosDec;
+      const cosH = (Math.sin(alt) - Math.sin(dec)*Math.sin(lat)) / (cosDec * Math.cos(lat));
+      Hdeg = rad2deg(Math.atan2(sinH, cosH));
+    }
+    const LSTdeg = localSiderealTimeDeg(date, lonDeg);
+    const raDeg = norm360(LSTdeg - Hdeg);
+    return { raH: raDeg / 15, dec: rad2deg(dec), LSTdeg, Hdeg };
+  }
+
+  // ---- planetary ephemeris (low-precision Keplerian) ----
+  function solveKepler(Mdeg, e){
+    const M = deg2rad(normSigned180(Mdeg));
+    let E = M;
+    for (let i = 0; i < 60; i++){
+      const dM = M - (E - e * Math.sin(E));
+      const dE = dM / (1 - e * Math.cos(E));
+      E += dE;
+      if (Math.abs(dE) < 1e-10) break;
+    }
+    return E; // radians
+  }
+
+  function heliocentricEcliptic(planetKey, T){
+    const el = PLANETS[planetKey];
+    const a = el.a0 + el.ad * T;
+    const e = el.e0 + el.ed * T;
+    const I = el.I0 + el.Id * T;
+    const L = el.L0 + el.Ld * T;
+    const peri = el.peri0 + el.perid * T;
+    const node = el.node0 + el.nodid * T;
+    const M = L - peri;
+    const w = peri - node;
+    const E = solveKepler(M, e);
+    const xOrb = a * (Math.cos(E) - e);
+    const yOrb = a * Math.sqrt(1 - e*e) * Math.sin(E);
+
+    const Ir = deg2rad(I), wr = deg2rad(w), Or = deg2rad(node);
+    const cosw = Math.cos(wr), sinw = Math.sin(wr);
+    const cosO = Math.cos(Or), sinO = Math.sin(Or);
+    const cosI = Math.cos(Ir), sinI = Math.sin(Ir);
+
+    const x = (cosw*cosO - sinw*sinO*cosI) * xOrb + (-sinw*cosO - cosw*sinO*cosI) * yOrb;
+    const y = (cosw*sinO + sinw*cosO*cosI) * xOrb + (-sinw*sinO + cosw*cosO*cosI) * yOrb;
+    const z = (sinw*sinI) * xOrb + (cosw*sinI) * yOrb;
+    return { x, y, z };
+  }
+
+  function planetGeocentricEquatorial(planetKey, date){
+    const JD = julianDate(date);
+    const T = (JD - 2451545.0) / 36525;
+    const p = heliocentricEcliptic(planetKey, T);
+    const earth = heliocentricEcliptic('earth', T);
+    const xecl = p.x - earth.x, yecl = p.y - earth.y, zecl = p.z - earth.z;
+
+    const eps = deg2rad(23.439291 - 0.0130042 * T);
+    const xeq = xecl;
+    const yeq = yecl * Math.cos(eps) - zecl * Math.sin(eps);
+    const zeq = yecl * Math.sin(eps) + zecl * Math.cos(eps);
+
+    const r = Math.sqrt(xeq*xeq + yeq*yeq + zeq*zeq);
+    const raDeg = norm360(rad2deg(Math.atan2(yeq, xeq)));
+    const decDeg = rad2deg(Math.asin(zeq / r));
+    return { raH: raDeg / 15, dec: decDeg, distanceAU: r };
+  }
+
+  function toHMS(hoursDecimal){
+    const h = norm24(hoursDecimal);
+    const hh = Math.floor(h);
+    const mFull = (h - hh) * 60;
+    const mm = Math.floor(mFull);
+    const ss = (mFull - mm) * 60;
+    return `${String(hh).padStart(2,'0')}h ${String(mm).padStart(2,'0')}m ${ss.toFixed(2).padStart(5,'0')}s`;
+  }
+
+  function toDMS(degDecimal){
+    const sign = degDecimal < 0 ? '−' : '+';
+    const d = Math.abs(degDecimal);
+    const dd = Math.floor(d);
+    const mFull = (d - dd) * 60;
+    const mm = Math.floor(mFull);
+    const ss = (mFull - mm) * 60;
+    return `${sign}${String(dd).padStart(2,'0')}° ${String(mm).padStart(2,'0')}′ ${ss.toFixed(1).padStart(4,'0')}″`;
+  }
+
+  function parseLocalDatetime(val){
+    if (!val) return new Date();
+    const [datePart, timePart] = val.split('T');
+    const [y,mo,da] = datePart.split('-').map(Number);
+    const [h,mi,se] = (timePart || '0:0:0').split(':').map(Number);
+    return new Date(y, mo-1, da, h, mi, se || 0);
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---- object list UI ----
+  function renderObjList(){
+    objListEl.innerHTML = '';
+    const label1 = mode === 'eq2hz' ? '赤経 RA (h)' : '高度 Alt (°)';
+    const label2 = mode === 'eq2hz' ? '赤緯 Dec (°)' : '方位角 Az (°)';
+
+    objects.forEach((obj, idx) => {
+      const row = document.createElement('div');
+      row.className = 'obj-row';
+
+      const planetOptions = PLANET_ORDER.map(k =>
+        `<option value="${k}" ${obj.planet === k ? 'selected' : ''}>${PLANETS[k].nameJa}</option>`
+      ).join('');
+
+      let bottomHtml = '';
+      if (obj.type === 'star'){
+        bottomHtml = `
+          <div class="obj-row-bottom">
+            <div class="field">
+              <label>${label1}</label>
+              <input type="number" step="0.0001" data-id="${obj.id}" data-key="v1" value="${obj.v1}">
+            </div>
+            <div class="field">
+              <label>${label2}</label>
+              <input type="number" step="0.0001" data-id="${obj.id}" data-key="v2" value="${obj.v2}">
+            </div>
+          </div>`;
+      } else {
+        bottomHtml = `
+          <div class="obj-row-bottom single">
+            <div class="field">
+              <label>惑星を選択</label>
+              <select data-id="${obj.id}" data-key="planet">${planetOptions}</select>
+            </div>
+            <div class="planet-note">軌道要素から赤経・赤緯を自動計算(日時に応じて移動)</div>
+          </div>`;
+      }
+
+      row.innerHTML = `
+        <div class="obj-row-top">
+          <div class="swatch" style="background:${colorFor(idx)}"></div>
+          <input type="text" class="name-input" data-id="${obj.id}" data-key="name" value="${escapeHtml(obj.name)}">
+          <select data-id="${obj.id}" data-key="type">
+            <option value="star" ${obj.type==='star'?'selected':''}>恒星(固定)</option>
+            <option value="planet" ${obj.type==='planet'?'selected':''}>惑星(自動計算)</option>
+          </select>
+          <button class="remove-btn" data-remove="${obj.id}" type="button" aria-label="削除" ${objects.length <= 1 ? 'disabled' : ''}>×</button>
+        </div>
+        ${bottomHtml}
+      `;
+      objListEl.appendChild(row);
+    });
+
+    objListEl.querySelectorAll('input, select').forEach(inp => {
+      inp.addEventListener('input', onObjInputChange);
+      inp.addEventListener('change', onObjInputChange);
+    });
+    objListEl.querySelectorAll('[data-remove]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (objects.length <= 1) return;
+        objects = objects.filter(o => o.id !== Number(btn.dataset.remove));
+        renderObjList();
+        render();
+      });
+    });
+  }
+
+  function onObjInputChange(e){
+    const id = Number(e.target.dataset.id);
+    const key = e.target.dataset.key;
+    const obj = objects.find(o => o.id === id);
+    if (!obj) return;
+
+    if (key === 'type'){
+      obj.type = e.target.value;
+      if (obj.type === 'planet' && !obj.planet){
+        obj.planet = 'mercury';
+        obj.name = PLANETS.mercury.nameJa;
+      }
+      if (obj.type === 'star' && (obj.v1 === undefined || obj.v2 === undefined)){
+        obj.v1 = 0; obj.v2 = 0;
+      }
+      renderObjList();
+      render();
+      return;
+    }
+
+    if (key === 'planet'){
+      obj.planet = e.target.value;
+      obj.name = PLANETS[obj.planet].nameJa;
+      renderObjList();
+      render();
+      return;
+    }
+
+    obj[key] = key === 'name' ? e.target.value : parseFloat(e.target.value);
+    render();
+  }
+
+  addStarBtn.addEventListener('click', () => {
+    const n = objects.length + 1;
+    objects.push({ id: idCounter++, name: `恒星${n}`, type: 'star', v1: 0, v2: 0 });
+    renderObjList();
+    render();
+  });
+
+  addPlanetBtn.addEventListener('click', () => {
+    objects.push({ id: idCounter++, name: PLANETS.mercury.nameJa, type: 'planet', planet: 'mercury' });
+    renderObjList();
+    render();
+  });
+
+  // ---- dome plotting ----
+  function plotObject(idx, alt, az, name){
+    const cx = 150, cy = 150, R = 120;
+    const color = colorFor(idx);
+    const clampedAlt = Math.max(-90, Math.min(90, alt));
+    const belowHorizon = clampedAlt < 0;
+    const altForPlot = Math.max(0, clampedAlt);
+    const r = R * (90 - altForPlot) / 90;
+    const azRad = deg2rad(az);
+    const x = cx + r * Math.sin(azRad);
+    const y = cy - r * Math.cos(azRad);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', cx); line.setAttribute('y1', cy);
+    line.setAttribute('x2', x.toFixed(2)); line.setAttribute('y2', y.toFixed(2));
+    line.setAttribute('stroke', color); line.setAttribute('stroke-width', '1'); line.setAttribute('opacity', '0.4');
+    g.appendChild(line);
+
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', x.toFixed(2)); dot.setAttribute('cy', y.toFixed(2)); dot.setAttribute('r', '5');
+    dot.setAttribute('fill', belowHorizon ? 'none' : color);
+    dot.setAttribute('stroke', color); dot.setAttribute('stroke-width', '1.5');
+    dot.setAttribute('stroke-dasharray', belowHorizon ? '2,2' : 'none');
+    g.appendChild(dot);
+
+    const tx = (x + 8), ty = (y - 8);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', tx.toFixed(2));
+    text.setAttribute('y', ty.toFixed(2));
+    text.setAttribute('class', 'dome-obj-label');
+    text.setAttribute('fill', color);
+    if (heading !== null){
+      text.setAttribute('transform', `rotate(${heading.toFixed(2)} ${tx.toFixed(2)} ${ty.toFixed(2)})`);
+    }
+    text.textContent = name || `#${idx+1}`;
+    g.appendChild(text);
+
+    objLayer.appendChild(g);
+  }
+
+  // ---- compass ----
+  function applyRotation(){
+    if (heading === null){
+      rotatingLayer.removeAttribute('transform');
+      [cardN, cardE, cardS, cardW].forEach(t => t.removeAttribute('transform'));
+      return;
+    }
+    rotatingLayer.setAttribute('transform', `rotate(${(-heading).toFixed(2)} 150 150)`);
+    [cardN, cardE, cardS, cardW].forEach(t => {
+      const x = t.getAttribute('x'), y = t.getAttribute('y');
+      t.setAttribute('transform', `rotate(${heading.toFixed(2)} ${x} ${y})`);
+    });
+  }
+
+  function handleOrientation(e){
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number' && !Number.isNaN(e.webkitCompassHeading)){
+      h = e.webkitCompassHeading; // iOS Safari: already true-north heading
+    } else if (e.alpha !== null && e.alpha !== undefined){
+      // Best-effort true-north heading for browsers exposing absolute alpha.
+      h = (360 - e.alpha) % 360;
+    }
+    if (h === null || Number.isNaN(h)) return;
+    heading = h;
+    applyRotation();
+    compassStatus.textContent = `方位: ${h.toFixed(0)}°(端末を水平に持つと精度が上がります)`;
+  }
+
+  function startCompass(){
+    window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.addEventListener('deviceorientation', handleOrientation, true);
+    compassActive = true;
+    compassBtn.textContent = '🧭 コンパス連動: ON';
+    compassBtn.classList.add('active');
+  }
+
+  function stopCompass(){
+    window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+    window.removeEventListener('deviceorientation', handleOrientation, true);
+    compassActive = false;
+    heading = null;
+    compassBtn.textContent = '🧭 コンパス連動: OFF';
+    compassBtn.classList.remove('active');
+    compassStatus.textContent = '';
+    applyRotation();
+    render();
+  }
+
+  compassBtn.addEventListener('click', () => {
+    if (compassActive){
+      stopCompass();
+      return;
+    }
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if (state === 'granted'){
+          startCompass();
+        } else {
+          compassStatus.textContent = 'センサーへのアクセスが許可されませんでした。';
+        }
+      }).catch(() => {
+        compassStatus.textContent = 'センサーにアクセスできませんでした(https接続が必要な場合があります)。';
+      });
+    } else if ('DeviceOrientationEvent' in window || 'ondeviceorientationabsolute' in window){
+      startCompass();
+    } else {
+      compassStatus.textContent = 'この端末・ブラウザは方位センサーに対応していません。';
+    }
+  });
+
+  function render(){
+    const lat = parseFloat(latEl.value), lon = parseFloat(lonEl.value);
+    const date = parseLocalDatetime(dtEl.value);
+    objLayer.innerHTML = '';
+    resultTable.innerHTML = '';
+
+    if ([lat, lon].some(v => Number.isNaN(v))) return;
+
+    objects.forEach((obj, idx) => {
+      let alt, az, ra, dec, LSTdeg, Hdeg, distanceAU = null;
+
+      if (obj.type === 'planet'){
+        const eph = planetGeocentricEquatorial(obj.planet, date);
+        ra = eph.raH; dec = eph.dec; distanceAU = eph.distanceAU;
+        const r = eqToHz(ra, dec, lat, lon, date);
+        alt = r.alt; az = r.az; LSTdeg = r.LSTdeg; Hdeg = r.Hdeg;
+      } else {
+        if (mode === 'eq2hz'){
+          const raH = obj.v1, decDeg = obj.v2;
+          if ([raH, decDeg].some(v => Number.isNaN(v))) return;
+          const r = eqToHz(raH, decDeg, lat, lon, date);
+          alt = r.alt; az = r.az; ra = raH; dec = decDeg; LSTdeg = r.LSTdeg; Hdeg = r.Hdeg;
+        } else {
+          const altDeg = obj.v1, azDeg = obj.v2;
+          if ([altDeg, azDeg].some(v => Number.isNaN(v))) return;
+          const r = hzToEq(altDeg, azDeg, lat, lon, date);
+          alt = altDeg; az = azDeg; ra = r.raH; dec = r.dec; LSTdeg = r.LSTdeg; Hdeg = r.Hdeg;
+        }
+      }
+
+      plotObject(idx, alt, az, obj.name);
+
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML = `
+        <div class="rname">
+          <span class="swatch" style="background:${colorFor(idx)}"></span>
+          <span>${escapeHtml(obj.name || `#${idx+1}`)}</span>
+          <span class="tag ${obj.type === 'planet' ? 'planet' : ''}">${obj.type === 'planet' ? '惑星・自動計算' : '恒星・固定'}</span>
+          ${alt < 0 ? '<span class="below">地平線下</span>' : ''}
+        </div>
+        <div class="output-row">
+          <span class="k">RA</span><span class="v hi">${ra.toFixed(4)} h — ${toHMS(ra)}</span>
+          <span class="k">Dec</span><span class="v hi">${dec.toFixed(4)}° — ${toDMS(dec)}</span>
+          <span class="k">Alt</span><span class="v">${alt.toFixed(4)}°</span>
+          <span class="k">Az</span><span class="v">${az.toFixed(4)}°</span>
+          <span class="k">LST</span><span class="v">${(LSTdeg/15).toFixed(4)} h</span>
+          <span class="k">H</span><span class="v">${Hdeg.toFixed(4)}°</span>
+          ${distanceAU !== null ? `<span class="k">地心距離</span><span class="v">${distanceAU.toFixed(4)} AU</span>` : ''}
+        </div>
+        ${obj.type === 'planet' ? '<div class="card-footnote">近似軌道要素による計算(光行差・章動・視差は未補正、有効範囲は概ね1800〜2050年)</div>' : ''}
+      `;
+      resultTable.appendChild(card);
+    });
+
+    applyRotation();
+  }
+
+  function setMode(newMode){
+    mode = newMode;
+    modeEqBtn.classList.toggle('active', mode === 'eq2hz');
+    modeHzBtn.classList.toggle('active', mode === 'hz2eq');
+    renderObjList();
+    render();
+  }
+
+  modeEqBtn.addEventListener('click', () => setMode('eq2hz'));
+  modeHzBtn.addEventListener('click', () => setMode('hz2eq'));
+
+  [latEl, lonEl, dtEl].forEach(el => el.addEventListener('input', render));
+
+  geoBtn.addEventListener('click', () => {
+    geoStatus.textContent = '取得中…';
+    geoStatus.className = 'geo-status';
+    if (!navigator.geolocation){
+      geoStatus.textContent = 'このブラウザは位置情報取得に対応していません。';
+      geoStatus.className = 'geo-status err';
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        latEl.value = pos.coords.latitude.toFixed(4);
+        lonEl.value = pos.coords.longitude.toFixed(4);
+        setLocalDatetimeNow();
+        geoStatus.textContent = `取得完了: ${pos.coords.latitude.toFixed(3)}°, ${pos.coords.longitude.toFixed(3)}°`;
+        geoStatus.className = 'geo-status ok';
+        render();
+      },
+      err => {
+        geoStatus.textContent = '位置情報を取得できませんでした。手入力してください。';
+        geoStatus.className = 'geo-status err';
+      }
+    );
+  });
+
+  renderObjList();
+  render();
+})();
+</script>
+</body>
+</html>
